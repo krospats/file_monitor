@@ -1,0 +1,65 @@
+# Makefile for file monitor
+
+# Tools
+CC      := gcc
+CD      := gdb
+CT      := valgrind
+
+# Standards & flags
+C_STANDARD      := c2x
+C_EXTRA_FLAGS   := -Wno-unused -pthread -Wno-stringop-truncation
+C_COMMON_FLAGS  := -std=$(C_STANDARD) -pedantic -W -Wall -Wextra $(C_EXTRA_FLAGS)
+C_DEBUG_FLAGS   := $(C_COMMON_FLAGS) -O1 -g -ggdb -DDEBUG
+C_RELEASE_FLAGS := $(C_COMMON_FLAGS) -Werror -O2
+
+# Для правильной работы realpath и d_type
+DEFINES := -D_GNU_SOURCE
+
+# Directories
+BUILD_DIR := build
+SRC_DIR   := src
+BIN_NAME  := file_monitor
+
+# Source files
+SRC_FILES := $(SRC_DIR)/monitor.c
+
+# Phony targets
+.PHONY: all debug release run debug-run test clean
+
+# Default: build both debug and release
+all: debug release
+
+# Build debug version
+debug: CFLAGS:=$(C_DEBUG_FLAGS) $(DEFINES)
+debug: $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(SRC_FILES) -o $(BUILD_DIR)/$(BIN_NAME)_debug
+
+# Build release version
+release: CFLAGS:=$(C_RELEASE_FLAGS) $(DEFINES)
+release: $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(SRC_FILES) -o $(BUILD_DIR)/$(BIN_NAME)
+
+# Ensure build directory exists
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Run the monitor on test directory (after debug build)
+run: debug
+	@echo "Running file monitor in debug mode..."
+	$(BUILD_DIR)/$(BIN_NAME)_debug /tmp/test_dir
+
+# Start monitor under debugger
+debug-run: debug
+	$(CD) --args $(BUILD_DIR)/$(BIN_NAME)_debug /tmp/test_dir
+
+# Memory check with Valgrind (release build)
+test: release
+	@echo "Creating test directory..."
+	@mkdir -p /tmp/test_dir
+	$(CT) --leak-check=full --show-leak-kinds=all --track-origins=yes \
+		$(BUILD_DIR)/$(BIN_NAME) /tmp/test_dir
+	@rm -rf /tmp/test_dir
+
+# Clean
+clean:
+	rm -rf $(BUILD_DIR)
